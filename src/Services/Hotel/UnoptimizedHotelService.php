@@ -7,6 +7,7 @@ use App\Common\SingletonTrait;
 use App\Entities\HotelEntity;
 use App\Entities\RoomEntity;
 use App\Services\Room\RoomService;
+use App\Common\Timers;
 use Exception;
 use PDO;
 
@@ -217,9 +218,18 @@ class UnoptimizedHotelService extends AbstractHotelService {
       ->setId( $data['ID'] )
       ->setName( $data['display_name'] );
     
+    $timer = Timers::getInstance();
+    $idtimermeta = $timer->startTimer("MetaTimer");
     $this->loadMetas( $hotel );
+    $timer->endTimer("MetaTimer", $idtimermeta);
+
+    $idtimerreview = $timer->startTimer("ReviewTimer");
     $this->loadReviews( $hotel );
+    $timer->endTimer("ReviewTimer", $idtimerreview);
+
+    $idtimercheap = $timer->startTimer("CheapTimer");
     $this->loadCheapestRoom( $hotel, $args );
+    $timer->endTimer("CheapTimer", $idtimercheap);
     
     // Verification de la distance
     if ( isset( $args['lat'] ) && isset( $args['lng'] ) && isset( $args['distance'] ) ) {
@@ -256,6 +266,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
    * @return HotelEntity[] La liste des boutiques qui correspondent aux paramètres donnés à args
    */
   public function list ( array $args = [] ) : array {
+    
     $db = $this->getDB();
     $stmt = $db->prepare( "SELECT * FROM wp_users" );
     $stmt->execute();
@@ -268,7 +279,6 @@ class UnoptimizedHotelService extends AbstractHotelService {
         // Des FilterException peuvent être déclenchées pour exclure certains hotels des résultats
       }
     }
-    
     
     return $results;
   }
