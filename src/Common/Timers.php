@@ -12,6 +12,7 @@ namespace App\Common;
  * myFunctionToMeasure();
  * $timer->endTimer('myLabel', $timerId);
  *
+ * // Utilisez cette ligne une seule fois. Écrivez-la juste avant que l'application ne commence à écrire du texte dans le navigateur.
  * header('Server-Timing: ' . Timers::getInstance()->getTimers() );
  * ```
  */
@@ -30,14 +31,13 @@ class Timers {
    *
    * @return string L'ID du timer qui a été généré
    */
-  public function startTimer ( string $name, string $label = null ) : string {
+  public function startTimer ( string $name) : string {
     if ( ! isset( $this->timers[$name] ) )
       $this->timers[$name] = [];
     
     $timerId = uniqid();
     $this->timers[$name][$timerId] = [
       'start' => microtime( true ),
-      'desc' => $label,
     ];
     
     return $timerId;
@@ -71,10 +71,18 @@ class Timers {
     
     $metrics = [];
     foreach ( $this->timers as $name => $timers ) {
+      $timeTaken = [];
+      
       // On convertit chaque sous-tableau de timer en temps écoulé
-      $timeTaken = array_map( function($timer) {
-        return ( $timer['end'] - $timer['start'] ) * 1000;
-      }, $timers);
+      foreach ($timers as $timer) {
+        if (!isset($timer['end']))
+          continue;
+        
+        $timeTaken[] = ( $timer['end'] - $timer['start'] ) * 1000;
+      }
+      
+      // On prépare un label contenant nom + nombre d'appels de la fonction
+      $label = addslashes($name . ' (' . count($timeTaken) . ')');
       
       // On additionne tous les temps écoulés du sous-tableau
       $timeTaken = array_sum($timeTaken);
@@ -83,8 +91,7 @@ class Timers {
       $output = sprintf( '%s;dur=%f', $name, $timeTaken );
       
       // On ajoute une description optionnelle
-      if ( isset($timers[0]['desc']) )
-        $output .= sprintf( ';desc="%s"', addslashes( $timers[0]['desc'] ) );
+      $output .= sprintf( ';desc="%s"', $label );
       
       $metrics[] = $output;
     }

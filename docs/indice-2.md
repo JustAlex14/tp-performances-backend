@@ -1,0 +1,2 @@
+### ℹ️ Indice n°2 : Comment bien choisir les fonctions à analyser
+Il est inutile d'analyser de fonctions de haut niveau, visez des fonctions plus imbriquées. En effet, si vous mesurez des fonctions de haut niveau, elles paraîtront plus longues, car elles incluront leurs fonctions sous-jacentes. Vous serez donc biaisé en pensant que ce sont les fonctions de haut niveau qui sont à optimiser alors que ce sont les fonctions qu'elles appellent.

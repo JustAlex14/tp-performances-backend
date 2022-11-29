@@ -1,11 +1,12 @@
 @startuml
 
 class Database <<singleton>> {
-  - PDO pdo
+  - <<readonly>> PDO pdo
+  - {static} Database instance
   - __construct()
   + {static} get() : PDO
 }
 
-note right of Database : La méthode get() est statique
+note right of Database : La méthode get() et la propriété instance sont statiques
 
 @enduml

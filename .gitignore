@@ -3,4 +3,4 @@
 **/docker/volumes/
 **/.idea/
 .env
-**/images/
+src/**/images/

@@ -1,11 +1,12 @@
-@startuml
+@startuml cache-singleton
 
 class Cache <<singleton>> {
-  - <<readonly>> TagAwareAdapterInterface cache
+  - {static} instance : Cache
+  - cache : AdapterInterface
   - __construct()
-  + {static} get() TagAwareAdapterInterface
+  + get() : AdapterInterface
 }
 
-note right of Cache : La méthode get() est statique
+note right of Cache : La méthode get() et la propriété instance sont statiques
 
 @enduml

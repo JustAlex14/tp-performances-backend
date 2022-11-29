@@ -8,6 +8,7 @@ use App\Entities\HotelEntity;
 use App\Entities\RoomEntity;
 use App\Services\Room\RoomService;
 use App\Common\Timers;
+use App\Common\PDOSingleton;
 use Exception;
 use PDO;
 
@@ -17,8 +18,6 @@ use PDO;
 class UnoptimizedHotelService extends AbstractHotelService {
   
   use SingletonTrait;
-  
-  private PDO $db;
   
   
   protected function __construct () {
@@ -30,9 +29,14 @@ class UnoptimizedHotelService extends AbstractHotelService {
    * Récupère une nouvelle instance de connexion à la base de donnée
    *
    * @return PDO
+   * @noinspection PhpUnnecessaryLocalVariableInspection
    */
   protected function getDB () : PDO {
-    return new PDO( "mysql:host=db;dbname=tp;charset=utf8mb4", "root", "root" );
+    $timer = Timers::getInstance();
+    $idtimerdb = $timer->startTimer("DbTimer");
+    $pdo = PDOSingleton::get();
+    $timer->endTimer("DbTimer", $idtimerdb);
+    return $pdo;
   }
   
   
@@ -61,35 +65,41 @@ class UnoptimizedHotelService extends AbstractHotelService {
   
   
   /**
-   * Charge toutes les meta données de l'instance donnée
+   * Récupère toutes les meta données de l'instance donnée
    *
    * @param HotelEntity $hotel
    *
-   * @return void
+   * @return array
+   * @noinspection PhpUnnecessaryLocalVariableInspection
    */
-  protected function loadMetas ( HotelEntity $hotel ) : void {
-    $hotel->setAddress( [
-      'address_1' => $this->getMeta( $hotel->getId(), 'address_1' ),
-      'address_2' => $this->getMeta( $hotel->getId(), 'address_2' ),
-      'address_city' => $this->getMeta( $hotel->getId(), 'address_city' ),
-      'address_zip' => $this->getMeta( $hotel->getId(), 'address_zip' ),
-      'address_country' => $this->getMeta( $hotel->getId(), 'address_country' ),
-    ] );
-    $hotel->setGeoLat( $this->getMeta( $hotel->getId(), 'geo_lat' ) );
-    $hotel->setGeoLng( $this->getMeta( $hotel->getId(), 'geo_lng' ) );
-    $hotel->setImageUrl( $this->getMeta( $hotel->getId(), 'coverImage' ) );
-    $hotel->setPhone( $this->getMeta( $hotel->getId(), 'phone' ) );
+  protected function getMetas ( HotelEntity $hotel ) : array {
+    $metaDatas = [
+      'address' => [
+        'address_1' => $this->getMeta( $hotel->getId(), 'address_1' ),
+        'address_2' => $this->getMeta( $hotel->getId(), 'address_2' ),
+        'address_city' => $this->getMeta( $hotel->getId(), 'address_city' ),
+        'address_zip' => $this->getMeta( $hotel->getId(), 'address_zip' ),
+        'address_country' => $this->getMeta( $hotel->getId(), 'address_country' ),
+      ],
+      'geo_lat' =>  $this->getMeta( $hotel->getId(), 'geo_lat' ),
+      'geo_lng' =>  $this->getMeta( $hotel->getId(), 'geo_lng' ),
+      'coverImage' =>  $this->getMeta( $hotel->getId(), 'coverImage' ),
+      'phone' =>  $this->getMeta( $hotel->getId(), 'phone' ),
+    ];
+    
+    return $metaDatas;
   }
   
   
   /**
-   * Charge les données liées aux évaluations des hotels (nombre d'avis et moyenne des avis)
+   * Récupère les données liées aux évaluations des hotels (nombre d'avis et moyenne des avis)
    *
    * @param HotelEntity $hotel
    *
-   * @return void
+   * @return array{rating: int, count: int}
+   * @noinspection PhpUnnecessaryLocalVariableInspection
    */
-  protected function loadReviews ( HotelEntity $hotel ) : void {
+  protected function getReviews ( HotelEntity $hotel ) : array {
     // Récupère tous les avis d'un hotel
     $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts, wp_postmeta WHERE wp_posts.post_author = :hotelId AND wp_posts.ID = wp_postmeta.post_id AND meta_key = 'rating' AND post_type = 'review'" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
@@ -100,15 +110,17 @@ class UnoptimizedHotelService extends AbstractHotelService {
       return intval( $review['meta_value'] );
     }, $reviews );
     
-    // Définit la note moyenne de l'hôtel
-    $hotel->setRating( round( array_sum( $reviews ) / count( $reviews ) ) );
-    // Définit le nombre d'avis de l'hôtel
-    $hotel->setRatingCount( count( $reviews ) );
+    $output = [
+      'rating' => round( array_sum( $reviews ) / count( $reviews ) ),
+      'count' => count( $reviews ),
+    ];
+    
+    return $output;
   }
   
   
   /**
-   * Charge les données liées à la chambre la moins chère des hotels
+   * Récupère les données liées à la chambre la moins chère des hotels
    *
    * @param HotelEntity $hotel
    * @param array{
@@ -122,16 +134,16 @@ class UnoptimizedHotelService extends AbstractHotelService {
    *   types: string[]
    * }                  $args Une liste de paramètres pour filtrer les résultats
    *
-   * @throws Exception
-   * @return void
+   * @throws FilterException
+   * @return RoomEntity
    */
-  protected function loadCheapestRoom ( HotelEntity $hotel, array $args = [] ) : void {
+  protected function getCheapestRoom ( HotelEntity $hotel, array $args = [] ) : RoomEntity {
     // On charge toutes les chambres de l'hôtel
     $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
     
     /**
-     * On convertit les lignes en instances de chambres (au passage ça charge toutes les données)
+     * On convertit les lignes en instances de chambres (au passage ça charge toutes les données).
      *
      * @var RoomEntity[] $rooms ;
      */
@@ -167,7 +179,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $filteredRooms[] = $room;
     }
     
-    // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list()
+    // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
     if ( count( $filteredRooms ) < 1 )
       throw new FilterException( "Aucune chambre ne correspond aux critères" );
     
@@ -184,8 +196,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
         $cheapestRoom = $room;
     endforeach;
     
-    // Définit la chambre la moins chère
-    $hotel->setCheapestRoom( $cheapestRoom );
+    return $cheapestRoom;
   }
   
   
@@ -218,17 +229,28 @@ class UnoptimizedHotelService extends AbstractHotelService {
       ->setId( $data['ID'] )
       ->setName( $data['display_name'] );
     
+    // Charge les données meta de l'hôtel
     $timer = Timers::getInstance();
     $idtimermeta = $timer->startTimer("MetaTimer");
-    $this->loadMetas( $hotel );
+    $metasData = $this->getMetas( $hotel );
+    $hotel->setAddress( $metasData['address'] );
+    $hotel->setGeoLat( $metasData['geo_lat'] );
+    $hotel->setGeoLng( $metasData['geo_lng'] );
+    $hotel->setImageUrl( $metasData['coverImage'] );
+    $hotel->setPhone( $metasData['phone'] );
     $timer->endTimer("MetaTimer", $idtimermeta);
-
+    
+    // Définit la note moyenne et le nombre d'avis de l'hôtel
     $idtimerreview = $timer->startTimer("ReviewTimer");
-    $this->loadReviews( $hotel );
+    $reviewsData = $this->getReviews( $hotel );
+    $hotel->setRating( $reviewsData['rating'] );
+    $hotel->setRatingCount( $reviewsData['count'] );
     $timer->endTimer("ReviewTimer", $idtimerreview);
-
+    
+    // Charge la chambre la moins chère de l'hôtel
     $idtimercheap = $timer->startTimer("CheapTimer");
-    $this->loadCheapestRoom( $hotel, $args );
+    $cheapestRoom = $this->getCheapestRoom( $hotel, $args );
+    $hotel->setCheapestRoom($cheapestRoom);
     $timer->endTimer("CheapTimer", $idtimercheap);
     
     // Verification de la distance
@@ -275,7 +297,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
     foreach ( $stmt->fetchAll( PDO::FETCH_ASSOC ) as $row ) {
       try {
         $results[] = $this->convertEntityFromArray( $row, $args );
-      } catch ( FilterException $e ) {
+      } catch ( FilterException ) {
         // Des FilterException peuvent être déclenchées pour exclure certains hotels des résultats
       }
     }

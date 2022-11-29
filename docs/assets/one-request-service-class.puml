@@ -1,0 +1,28 @@
+@startuml one-request-service-class
+
+hide empty attributes
+
+abstract class AbstractHotelService <<singleton>> {
+  - <<readonly>> roomService: AbstractRoomService
+
+  # __construct( roomService: AbstractRoomService )
+  + getRoomService(): AbstractRoomService
+  + list( args: array ) : HotelEntity[]
+}
+
+class UnoptimizedHotelService extends AbstractHotelService {
+  # computeDistance( latFrom: float, lngFrom: float, latTo: float, lngTo: float ) : float
+  # convertEntityFromArray( data: array, args: array ) : HotelEntity
+  # getDB() : PDO
+  # getCheapestRoom( hotel: HotelEntity, args: array ) : RoomEntity
+  # getMeta( userId: int, key: string ) : ?string
+  # getMetas( hotel: HotelEntity ) : array
+  # getReviews( hotel: HotelEntity ) : array
+}
+
+class OneRequestHotelService extends AbstractHotelService {
+  # convertEntityFromArray( args: array ) : HotelEntity
+  # getDB() : PDO
+  # buildQuery( args: array ) : PDOStatement
+}
+@enduml

@@ -1,0 +1,42 @@
+@startuml cached-api-reviews-service
+
+hide empty attributes
+hide empty methods
+
+abstract class AbstractHotelService <<singleton>> {
+  - <<readonly>> roomService: AbstractRoomService
+
+  # __construct( roomService: AbstractRoomService )
+  + getRoomService(): AbstractRoomService
+  + list( args: array ) : HotelEntity[]
+}
+
+class OneRequestHotelService extends AbstractHotelService {
+  # convertEntityFromArray( args: array ) : HotelEntity
+  # getDB() : PDO
+  # buildQuery( args: array ) : PDOStatement
+}
+
+class ReworkedHotelService extends OneRequestHotelService {
+  # convertEntityFromArray( args: array ) : HotelEntity
+}
+
+class ApiReviewsService {
+  - API_URL : string
+  + get ( hotelId: int) : array
+}
+
+class CachedApiReviewsService extends ApiReviewsService {
+}
+
+class Cache <<singleton>> {
+  - {static} instance : Cache
+  - cache : AdapterInterface
+  - __construct()
+  + get() : AdapterInterface
+}
+
+ReworkedHotelService -right- CachedApiReviewsService
+CachedApiReviewsService -right- Cache
+
+@enduml

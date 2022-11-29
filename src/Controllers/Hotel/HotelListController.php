@@ -85,11 +85,14 @@ class HotelListController extends AbstractController {
     return array(
       'types' => $types,
       'search' => sanitize( $_GET['search'] ?? null ),
-      'lat' => isset( $_GET['lat'] )
+      'lat' => isset( $_GET['lat'] ) && !empty($_GET['lat'])
         ? floatval( $_GET['lat'] )
         : null,
-      'lng' => isset( $_GET['lng'] )
+      'lng' => isset( $_GET['lng'] ) && !empty($_GET['lng'])
         ? floatval( $_GET['lng'] )
+        : null,
+      'distance' => isset( $_GET['distance'] ) && intval($_GET['distance']) > 0
+        ? intval( $_GET['distance'] )
         : null,
       'price' => [
         'min' => $price['min'] > 0
@@ -114,9 +117,6 @@ class HotelListController extends AbstractController {
         ? $bathRooms
         : null,
       'counters' => $this->roomService->getCountByType(),
-      'distance' => isset( $_GET['distance'] )
-        ? intval( $_GET['distance'] )
-        : null,
     );
   }
   
