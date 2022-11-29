@@ -7,6 +7,8 @@ use App\Common\SingletonTrait;
 use App\Entities\HotelEntity;
 use App\Entities\RoomEntity;
 use App\Services\Room\RoomService;
+use App\Common\Timers;
+use App\Common\PDOSingleton;
 use Exception;
 use PDO;
 
@@ -30,7 +32,10 @@ class UnoptimizedHotelService extends AbstractHotelService {
    * @noinspection PhpUnnecessaryLocalVariableInspection
    */
   protected function getDB () : PDO {
-    $pdo = new PDO( "mysql:host=db;dbname=tp;charset=utf8mb4", "root", "root" );
+    $timer = Timers::getInstance();
+    $idtimerdb = $timer->startTimer("DbTimer");
+    $pdo = PDOSingleton::get();
+    $timer->endTimer("DbTimer", $idtimerdb);
     return $pdo;
   }
   
@@ -225,21 +230,28 @@ class UnoptimizedHotelService extends AbstractHotelService {
       ->setName( $data['display_name'] );
     
     // Charge les données meta de l'hôtel
+    $timer = Timers::getInstance();
+    $idtimermeta = $timer->startTimer("MetaTimer");
     $metasData = $this->getMetas( $hotel );
     $hotel->setAddress( $metasData['address'] );
     $hotel->setGeoLat( $metasData['geo_lat'] );
     $hotel->setGeoLng( $metasData['geo_lng'] );
     $hotel->setImageUrl( $metasData['coverImage'] );
     $hotel->setPhone( $metasData['phone'] );
+    $timer->endTimer("MetaTimer", $idtimermeta);
     
     // Définit la note moyenne et le nombre d'avis de l'hôtel
+    $idtimerreview = $timer->startTimer("ReviewTimer");
     $reviewsData = $this->getReviews( $hotel );
     $hotel->setRating( $reviewsData['rating'] );
     $hotel->setRatingCount( $reviewsData['count'] );
+    $timer->endTimer("ReviewTimer", $idtimerreview);
     
     // Charge la chambre la moins chère de l'hôtel
+    $idtimercheap = $timer->startTimer("CheapTimer");
     $cheapestRoom = $this->getCheapestRoom( $hotel, $args );
     $hotel->setCheapestRoom($cheapestRoom);
+    $timer->endTimer("CheapTimer", $idtimercheap);
     
     // Verification de la distance
     if ( isset( $args['lat'] ) && isset( $args['lng'] ) && isset( $args['distance'] ) ) {

@@ -6,9 +6,9 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 
 **Choix des méthodes à analyser** :
 
-- `METHOD_1` TEMPS
-- `METHOD_2` TEMPS
-- `METHOD_3` TEMPS
+- `getMetas` 4.41 secs
+- `getReviews` 8.96 secs
+- `loadCheapestRoom` 15.35 secs
 
 
 
@@ -18,9 +18,9 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 
 **Temps consommé par `getDB()`** 
 
-- **Avant** TEMPS
+- **Avant** 1.21 secs
 
-- **Après** TEMPS
+- **Après** 7.11 ms
 
 
 ## Question 4 : Délégation des opérations de filtrage à la base de données
