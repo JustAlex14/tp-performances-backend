@@ -139,9 +139,91 @@ class UnoptimizedHotelService extends AbstractHotelService {
    */
   protected function getCheapestRoom ( HotelEntity $hotel, array $args = [] ) : RoomEntity {
     // On charge toutes les chambres de l'hôtel
-    $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'" );
-    $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
+    $command = "SELECT MIN(priceData.meta_value) AS price,
+      surfaceData.meta_value as surface
+     
+      FROM wp_posts AS post
+  
+        INNER JOIN wp_postmeta AS surfaceData 
+          ON post.ID = surfaceData.post_id AND surfaceData.meta_key = 'surface'
+
+        INNER JOIN wp_postmeta AS typeData 
+          ON post.ID = typeData.post_id AND typeData.meta_key = 'type'
+
+        INNER JOIN wp_postmeta AS bedData
+          ON post.ID = bedData.post_id AND bedData.meta_key = 'bedRoomsCount'
+
+        INNER JOIN wp_postmeta AS bathData
+          ON post.ID = bathData.post_id AND bathData.meta_key = 'bathRoomsCount'
+  
+        INNER JOIN wp_postmeta AS priceData
+          ON post.ID = priceData.post_id AND priceData.meta_key = 'price'
+      ";
+
+    $whereTab = [];
+
+    $surfmin = $args['surface']['min'] ?? -1.0;
+    $surfmax = $args['surface']['max'] ?? -1.0;
+    $pricemin = $args['price']['min'] ?? null;
+    $pricemax = $args['price']['max'] ?? null;
+    $roomneed = $args['rooms'] ?? -1;
+    $bathneed = $args['bathRooms'] ?? -1;
+    $typeneed = $args['types'] ?? null;
+
+    if ($surfmin!=-1.0)
+      $whereTab[] = 'surfaceData.meta_value >= :surfmin';
     
+    if ($surfmax!=-1.0)
+      $whereTab[] = 'surfaceData.meta_value <= :surfmax';
+
+    if ($pricemin!=null)
+      $whereTab[] = 'priceData.meta_value >= :pricemin';
+    
+    if ($pricemax!=null)
+      $whereTab[] = 'priceData.meta_value <= :pricemax';
+
+    if ($roomneed!=-1.0)
+      $whereTab[] = 'bedData.meta_value >= :roomneed';
+    
+    if ($bathneed!=-1.0)
+      $whereTab[] = 'bathData.meta_value >= :bathneed';
+
+    if ($typeneed!=null)
+      $whereTab[] = 'typeData.meta_value = :typeneed';
+
+
+    if (count($whereTab) > 0)
+    {
+      $command .= " WHERE " . implode(' AND ', $whereTab);
+    }
+
+    $stmt = $this->getDB()->prepare($command);
+
+    if ($surfmin!=-1.0)
+      $stmt->bindParam('surfmin', $surfmin, PDO::PARAM_INT);
+    
+    if ($surfmax!=-1.0)
+      $stmt->bindParam('surfmax', $surfmax, PDO::PARAM_INT);
+
+    if ($pricemin!=null)
+      $stmt->bindParam('pricemin', $pricemin, PDO::PARAM_STRING);
+    
+    if ($pricemax!=null)
+      $stmt->bindParam('pricemax', $pricemax, PDO::PARAM_STRING);
+
+    if ($roomneed!=-1.0)
+      $stmt->bindParam('roomneed', $roomneed, PDO::PARAM_INT);
+    
+    if ($bathneed!=-1.0)
+      $stmt->bindParam('bathneed', $bathneed, PDO::PARAM_INT);
+
+    if ($typeneed!=null)
+      $stmt->bindParam('typeneed', $typeneed, PDO::PARAM_STRING);
+    
+    $stmt->execute();
+    
+    dump($stmt->fetchAll( PDO::FETCH_ASSOC ));
+
     /**
      * On convertit les lignes en instances de chambres (au passage ça charge toutes les données).
      *
@@ -150,53 +232,14 @@ class UnoptimizedHotelService extends AbstractHotelService {
     $rooms = array_map( function ( $row ) {
       return $this->getRoomService()->get( $row['ID'] );
     }, $stmt->fetchAll( PDO::FETCH_ASSOC ) );
+
     
-    // On exclut les chambres qui ne correspondent pas aux critères
-    $filteredRooms = [];
-    
-    foreach ( $rooms as $room ) {
-      if ( isset( $args['surface']['min'] ) && $room->getSurface() < $args['surface']['min'] )
-        continue;
-      
-      if ( isset( $args['surface']['max'] ) && $room->getSurface() > $args['surface']['max'] )
-        continue;
-      
-      if ( isset( $args['price']['min'] ) && intval( $room->getPrice() ) < $args['price']['min'] )
-        continue;
-      
-      if ( isset( $args['price']['max'] ) && intval( $room->getPrice() ) > $args['price']['max'] )
-        continue;
-      
-      if ( isset( $args['rooms'] ) && $room->getBedRoomsCount() < $args['rooms'] )
-        continue;
-      
-      if ( isset( $args['bathRooms'] ) && $room->getBathRoomsCount() < $args['bathRooms'] )
-        continue;
-      
-      if ( isset( $args['types'] ) && ! empty( $args['types'] ) && ! in_array( $room->getType(), $args['types'] ) )
-        continue;
-      
-      $filteredRooms[] = $room;
-    }
     
     // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
-    if ( count( $filteredRooms ) < 1 )
+    if ( count( $rooms ) < 1 )
       throw new FilterException( "Aucune chambre ne correspond aux critères" );
     
-    
-    // Trouve le prix le plus bas dans les résultats de recherche
-    $cheapestRoom = null;
-    foreach ( $filteredRooms as $room ) :
-      if ( ! isset( $cheapestRoom ) ) {
-        $cheapestRoom = $room;
-        continue;
-      }
-      
-      if ( intval( $room->getPrice() ) < intval( $cheapestRoom->getPrice() ) )
-        $cheapestRoom = $room;
-    endforeach;
-    
-    return $cheapestRoom;
+    return $rooms;
   }
   
   
