@@ -101,18 +101,19 @@ class UnoptimizedHotelService extends AbstractHotelService {
    */
   protected function getReviews ( HotelEntity $hotel ) : array {
     // Récupère tous les avis d'un hotel
-    $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts, wp_postmeta WHERE wp_posts.post_author = :hotelId AND wp_posts.ID = wp_postmeta.post_id AND meta_key = 'rating' AND post_type = 'review'" );
+    $stmt = $this->getDB()->prepare( "SELECT AVG(ratingData.meta_value) as average,
+      Count(ratingData.meta_value) as counted
+    FROM wp_posts AS post
+        INNER JOIN wp_postmeta AS ratingData
+            ON post.ID = ratingData.post_id AND ratingData.meta_key = 'rating'
+            
+      WHERE post.post_author=:hotelId AND post.ID = ratingData.post_id AND meta_key = 'rating' AND post.post_type = 'review'" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
     $reviews = $stmt->fetchAll( PDO::FETCH_ASSOC );
     
-    // Sur les lignes, ne garde que la note de l'avis
-    $reviews = array_map( function ( $review ) {
-      return intval( $review['meta_value'] );
-    }, $reviews );
-    
     $output = [
-      'rating' => round( array_sum( $reviews ) / count( $reviews ) ),
-      'count' => count( $reviews ),
+      'rating' => round( $reviews[0]['average'] ),
+      'count' => $reviews[0]['counted'],
     ];
     
     return $output;
@@ -139,7 +140,13 @@ class UnoptimizedHotelService extends AbstractHotelService {
    */
   protected function getCheapestRoom ( HotelEntity $hotel, array $args = [] ) : RoomEntity {
     // On charge toutes les chambres de l'hôtel
-    $command = "SELECT MIN(priceData.meta_value) AS price,
+    $command = "SELECT post.ID as ID,
+      post.post_title as title,
+      MIN(priceData.meta_value) AS price,
+      imageData.meta_value as coverimage,
+      bedData.meta_value as bedrooms,
+      bathData.meta_value as bathrooms,
+      typeData.meta_value as type,
       surfaceData.meta_value as surface
      
       FROM wp_posts AS post
@@ -151,95 +158,93 @@ class UnoptimizedHotelService extends AbstractHotelService {
           ON post.ID = typeData.post_id AND typeData.meta_key = 'type'
 
         INNER JOIN wp_postmeta AS bedData
-          ON post.ID = bedData.post_id AND bedData.meta_key = 'bedRoomsCount'
+          ON post.ID = bedData.post_id AND bedData.meta_key = 'bedrooms_count'
 
         INNER JOIN wp_postmeta AS bathData
-          ON post.ID = bathData.post_id AND bathData.meta_key = 'bathRoomsCount'
+          ON post.ID = bathData.post_id AND bathData.meta_key = 'bathrooms_count'
   
         INNER JOIN wp_postmeta AS priceData
           ON post.ID = priceData.post_id AND priceData.meta_key = 'price'
+
+        INNER JOIN wp_postmeta AS imageData
+          ON post.ID = imageData.post_id AND imageData.meta_key = 'coverImage'
       ";
 
     $whereTab = [];
 
-    $surfmin = $args['surface']['min'] ?? -1.0;
-    $surfmax = $args['surface']['max'] ?? -1.0;
-    $pricemin = $args['price']['min'] ?? null;
-    $pricemax = $args['price']['max'] ?? null;
-    $roomneed = $args['rooms'] ?? -1;
-    $bathneed = $args['bathRooms'] ?? -1;
-    $typeneed = $args['types'] ?? null;
-
-    if ($surfmin!=-1.0)
+    if (($args['surface']['min'] ?? -1.0)!=-1.0)
       $whereTab[] = 'surfaceData.meta_value >= :surfmin';
     
-    if ($surfmax!=-1.0)
+    if (($args['surface']['max'] ?? -1.0)!=-1.0)
       $whereTab[] = 'surfaceData.meta_value <= :surfmax';
 
-    if ($pricemin!=null)
+    if (($args['price']['min'] ?? null)!=null)
       $whereTab[] = 'priceData.meta_value >= :pricemin';
     
-    if ($pricemax!=null)
+    if (($args['price']['max'] ?? null)!=null)
       $whereTab[] = 'priceData.meta_value <= :pricemax';
 
-    if ($roomneed!=-1.0)
+    if (($args['rooms'] ?? -1)!=-1.0)
       $whereTab[] = 'bedData.meta_value >= :roomneed';
     
-    if ($bathneed!=-1.0)
+    if (($args['bathRooms'] ?? -1)!=-1.0)
       $whereTab[] = 'bathData.meta_value >= :bathneed';
 
-    if ($typeneed!=null)
+    if (($args['types'] ?? null)!=null)
       $whereTab[] = 'typeData.meta_value = :typeneed';
 
+    
+    $command .= " WHERE post.post_author=:hotelId"; 
+    
 
     if (count($whereTab) > 0)
     {
-      $command .= " WHERE " . implode(' AND ', $whereTab);
+      $command .= " AND " . implode(' AND ', $whereTab);
     }
 
     $stmt = $this->getDB()->prepare($command);
 
-    if ($surfmin!=-1.0)
-      $stmt->bindParam('surfmin', $surfmin, PDO::PARAM_INT);
+    if (($args['surface']['min'] ?? -1.0)!=-1.0)
+      $stmt->bindParam('surfmin', $$args['surface']['min'], PDO::PARAM_INT);
     
-    if ($surfmax!=-1.0)
-      $stmt->bindParam('surfmax', $surfmax, PDO::PARAM_INT);
+    if (($args['surface']['max'] ?? -1.0)!=-1.0)
+      $stmt->bindParam('surfmax', $$args['surface']['max'], PDO::PARAM_INT);
 
-    if ($pricemin!=null)
-      $stmt->bindParam('pricemin', $pricemin, PDO::PARAM_STRING);
+    if (($args['price']['min'] ?? null)!=null)
+      $stmt->bindParam('pricemin', $args['price']['min'], PDO::PARAM_STRING);
     
-    if ($pricemax!=null)
-      $stmt->bindParam('pricemax', $pricemax, PDO::PARAM_STRING);
+    if (($args['price']['max'] ?? null)!=null)
+      $stmt->bindParam('pricemax', $args['price']['max'], PDO::PARAM_STRING);
 
-    if ($roomneed!=-1.0)
-      $stmt->bindParam('roomneed', $roomneed, PDO::PARAM_INT);
+    if (($args['rooms'] ?? -1)!=-1.0)
+      $stmt->bindParam('roomneed', $args['rooms'], PDO::PARAM_INT);
     
-    if ($bathneed!=-1.0)
-      $stmt->bindParam('bathneed', $bathneed, PDO::PARAM_INT);
+    if (($args['bathRooms'] ?? -1)!=-1.0)
+      $stmt->bindParam('bathneed', $args['bathRooms'], PDO::PARAM_INT);
 
-    if ($typeneed!=null)
-      $stmt->bindParam('typeneed', $typeneed, PDO::PARAM_STRING);
+    if (($args['types'] ?? null)!=null)
+      $stmt->bindParam('typeneed', $args['types'], PDO::PARAM_STRING);
     
-    $stmt->execute();
-    
-    dump($stmt->fetchAll( PDO::FETCH_ASSOC ));
-
-    /**
-     * On convertit les lignes en instances de chambres (au passage ça charge toutes les données).
-     *
-     * @var RoomEntity[] $rooms ;
-     */
-    $rooms = array_map( function ( $row ) {
-      return $this->getRoomService()->get( $row['ID'] );
-    }, $stmt->fetchAll( PDO::FETCH_ASSOC ) );
-
-    
+    $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
+      
+    $roomdata = $stmt->fetchAll( PDO::FETCH_ASSOC );
+    //dump($roomdata);
     
     // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
-    if ( count( $rooms ) < 1 )
+    if ( $roomdata == null )
       throw new FilterException( "Aucune chambre ne correspond aux critères" );
     
-    return $rooms;
+    $room = new RoomEntity();
+    $room->setId($roomdata[0]['ID']);
+    $room->setTitle($roomdata[0]['title']);
+    $room->setPrice($roomdata[0]['price']);
+    $room->setCoverImageUrl($roomdata[0]['coverimage']);
+    $room->setBedRoomsCount($roomdata[0]['bedrooms']);
+    $room->setBathRoomsCount($roomdata[0]['bathrooms']);
+    $room->setSurface($roomdata[0]['surface']);
+    $room->setType($roomdata[0]['type']);
+
+    return $room;
   }
   
   
