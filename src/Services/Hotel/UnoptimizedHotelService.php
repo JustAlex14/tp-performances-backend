@@ -194,7 +194,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $whereTab[] = 'typeData.meta_value = :typeneed';
 
     
-    $command .= " WHERE post.post_author=:hotelId"; 
+    $command .= " WHERE post.post_type='room'"; 
     
 
     if (count($whereTab) > 0)
@@ -202,19 +202,21 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $command .= " AND " . implode(' AND ', $whereTab);
     }
 
+    $command .= " Group by post.post_author";
+
     $stmt = $this->getDB()->prepare($command);
 
     if (($args['surface']['min'] ?? -1.0)!=-1.0)
-      $stmt->bindParam('surfmin', $$args['surface']['min'], PDO::PARAM_INT);
+      $stmt->bindParam('surfmin', $args['surface']['min'], PDO::PARAM_INT);
     
     if (($args['surface']['max'] ?? -1.0)!=-1.0)
-      $stmt->bindParam('surfmax', $$args['surface']['max'], PDO::PARAM_INT);
+      $stmt->bindParam('surfmax', $args['surface']['max'], PDO::PARAM_INT);
 
     if (($args['price']['min'] ?? null)!=null)
-      $stmt->bindParam('pricemin', $args['price']['min'], PDO::PARAM_STRING);
+      $stmt->bindParam('pricemin', $args['price']['min']);
     
     if (($args['price']['max'] ?? null)!=null)
-      $stmt->bindParam('pricemax', $args['price']['max'], PDO::PARAM_STRING);
+      $stmt->bindParam('pricemax', $args['price']['max']);
 
     if (($args['rooms'] ?? -1)!=-1.0)
       $stmt->bindParam('roomneed', $args['rooms'], PDO::PARAM_INT);
@@ -223,26 +225,29 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $stmt->bindParam('bathneed', $args['bathRooms'], PDO::PARAM_INT);
 
     if (($args['types'] ?? null)!=null)
-      $stmt->bindParam('typeneed', $args['types'], PDO::PARAM_STRING);
+      $stmt->bindParam('typeneed', $args['types'][0]);
+
     
-    $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
+    $stmt->execute();
       
-    $roomdata = $stmt->fetchAll( PDO::FETCH_ASSOC );
-    //dump($roomdata);
+    $roomdata = $stmt->fetch( PDO::FETCH_ASSOC );
+    
+    
     
     // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
-    if ( $roomdata == null )
+    if ( $roomdata == null || $roomdata['ID'] == null)
       throw new FilterException( "Aucune chambre ne correspond aux critères" );
     
+    //dump($roomdata);
     $room = new RoomEntity();
-    $room->setId($roomdata[0]['ID']);
-    $room->setTitle($roomdata[0]['title']);
-    $room->setPrice($roomdata[0]['price']);
-    $room->setCoverImageUrl($roomdata[0]['coverimage']);
-    $room->setBedRoomsCount($roomdata[0]['bedrooms']);
-    $room->setBathRoomsCount($roomdata[0]['bathrooms']);
-    $room->setSurface($roomdata[0]['surface']);
-    $room->setType($roomdata[0]['type']);
+    $room->setId($roomdata['ID']);
+    $room->setTitle($roomdata['title']);
+    $room->setPrice($roomdata['price']);
+    $room->setCoverImageUrl($roomdata['coverimage']);
+    $room->setBedRoomsCount($roomdata['bedrooms']);
+    $room->setBathRoomsCount($roomdata['bathrooms']);
+    $room->setSurface($roomdata['surface']);
+    $room->setType($roomdata['type']);
 
     return $room;
   }

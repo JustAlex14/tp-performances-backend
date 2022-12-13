@@ -68,17 +68,17 @@ class RoomService extends AbstractRoomService {
    */
   public function getCountByType() : array {
     $stmt = $this->getDB()->prepare("
-SELECT
-	meta.meta_value as roomType,
-	COUNT(post.ID) as count
-FROM
-	tp.wp_posts as post
-	INNER JOIN tp.wp_postmeta as meta ON post.ID = meta.post_id AND meta.meta_key = 'type'
-WHERE
-	post_type = 'room'
-GROUP BY
-	roomType;
-");
+      SELECT
+        meta.meta_value as roomType,
+        COUNT(post.ID) as count
+      FROM
+        tp.wp_posts as post
+        INNER JOIN tp.wp_postmeta as meta ON post.ID = meta.post_id AND meta.meta_key = 'type'
+      WHERE
+        post_type = 'room'
+      GROUP BY
+        roomType;
+      ");
     $stmt->execute();
     
     $output = [];
