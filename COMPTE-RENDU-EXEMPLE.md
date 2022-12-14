@@ -32,82 +32,131 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 
 - **Après** 17 secs
 
-**Temps consommé par `getCheapestRoom()`** 
+
+
+#### Amélioration de la méthode `getMeta()` et donc de la méthode `getMetas()` :
+
+- **Avant** 3.07 secs
+
+```sql
+-- SELECT * FROM wp_usermeta
+```
+
+- **Après** 170.66 ms
+
+```sql
+-- SELECT meta_key,meta_value FROM wp_usermeta WHERE user_id = :userid
+```
+
+
+
+#### Amélioration de la méthode `getCheapestRoom()` :
 
 - **Avant** 15.35 secs
 
+```sql
+-- SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
+```
+
 - **Après** 11.04 secs
 
-**Temps consommé par `getReview()`** 
+```sql
+-- $command = "SELECT post.ID as ID,
+      post.post_title as title,
+      MIN(priceData.meta_value) AS price,
+      imageData.meta_value as coverimage,
+      bedData.meta_value as bedrooms,
+      bathData.meta_value as bathrooms,
+      typeData.meta_value as type,
+      surfaceData.meta_value as surface
+     
+      FROM wp_posts AS post
+  
+        INNER JOIN wp_postmeta AS surfaceData 
+          ON post.ID = surfaceData.post_id AND surfaceData.meta_key = 'surface'
+
+        INNER JOIN wp_postmeta AS typeData 
+          ON post.ID = typeData.post_id AND typeData.meta_key = 'type'
+
+        INNER JOIN wp_postmeta AS bedData
+          ON post.ID = bedData.post_id AND bedData.meta_key = 'bedrooms_count'
+
+        INNER JOIN wp_postmeta AS bathData
+          ON post.ID = bathData.post_id AND bathData.meta_key = 'bathrooms_count'
+  
+        INNER JOIN wp_postmeta AS priceData
+          ON post.ID = priceData.post_id AND priceData.meta_key = 'price'
+
+        INNER JOIN wp_postmeta AS imageData
+          ON post.ID = imageData.post_id AND imageData.meta_key = 'coverImage'
+      ";
+
+    $whereTab = [];
+
+    if (($args['surface']['min'] ?? -1.0)!=-1.0)
+      $whereTab[] = 'surfaceData.meta_value >= :surfmin';
+    
+    if (($args['surface']['max'] ?? -1.0)!=-1.0)
+      $whereTab[] = 'surfaceData.meta_value <= :surfmax';
+
+    if (($args['price']['min'] ?? null)!=null)
+      $whereTab[] = 'priceData.meta_value >= :pricemin';
+    
+    if (($args['price']['max'] ?? null)!=null)
+      $whereTab[] = 'priceData.meta_value <= :pricemax';
+
+    if (($args['rooms'] ?? -1)!=-1.0)
+      $whereTab[] = 'bedData.meta_value >= :roomneed';
+    
+    if (($args['bathRooms'] ?? -1)!=-1.0)
+      $whereTab[] = 'bathData.meta_value >= :bathneed';
+
+    if (($args['types'] ?? null)!=null)
+      $whereTab[] = 'typeData.meta_value IN ("'.implode('","',$args['types']).'")';
+
+      
+
+    
+    $command .= " WHERE post.post_type='room' AND post.post_author=:hotelId"; 
+```
+
+
+
+#### Amélioration de la méthode `getReview()` :
 
 - **Avant** 8.96 secs
 
+```sql
+-- SELECT * FROM wp_posts, wp_postmeta WHERE wp_posts.post_author = :hotelId AND wp_posts.ID = wp_postmeta.post_id AND meta_key = 'rating' AND post_type = 'review'
+```
+
 - **Après** 6.36 secs
 
-
-
-
-#### Amélioration de la méthode `METHOD` et donc de la méthode `METHOD` :
-
-- **Avant** TEMPS
-
 ```sql
--- REQ SQL DE BASE
-```
-
-- **Après** TEMPS
-
-```sql
--- NOUVELLE REQ SQL
+-- SELECT AVG(ratingData.meta_value) as average,
+      Count(ratingData.meta_value) as counted
+    FROM wp_posts AS post
+        INNER JOIN wp_postmeta AS ratingData
+            ON post.ID = ratingData.post_id AND ratingData.meta_key = 'rating'
+            
+      WHERE post.post_author=:hotelId AND post.ID = ratingData.post_id AND meta_key = 'rating' AND post.post_type = 'review'
 ```
 
 
 
-#### Amélioration de la méthode `METHOD` :
-
-- **Avant** TEMPS
-
-```sql
--- REQ SQL DE BASE
-```
-
-- **Après** TEMPS
-
-```sql
--- NOUVELLE REQ SQL
-```
-
-
-
-#### Amélioration de la méthode `METHOD` :
-
-- **Avant** TEMPS
-
-```sql
--- REQ SQL DE BASE
-```
-
-- **Après** TEMPS
-
-```sql
--- NOUVELLE REQ SQL
-```
-
-
-
-## Question 5 : Réduction du nombre de requêtes SQL pour `METHOD`
+## Question 5 : Réduction du nombre de requêtes SQL pour `getMeta()`
 
 |                              | **Avant** | **Après** |
 |------------------------------|-----------|-----------|
-| Nombre d'appels de `getDB()` | NOMBRE    | NOMBRE    |
- | Temps de `METHOD`            | TEMPS     | TEMPS     |
+| Nombre d'appels de `getDB()` | 200    | 200    |
+ | Temps de `getMeta()`            | 3.07     | 170.66     |
 
 ## Question 6 : Création d'un service basé sur une seule requête SQL
 
 |                              | **Avant** | **Après** |
 |------------------------------|-----------|-----------|
-| Nombre d'appels de `getDB()` | NOMBRE    | NOMBRE    |
-| Temps de chargement global   | TEMPS     | TEMPS     |
+| Nombre d'appels de `getDB()` | 2201    | 601    |
+| Temps de chargement global   | 6.49     | 4.43     |
 
 **Requête SQL**
 
