@@ -48,16 +48,16 @@ class UnoptimizedHotelService extends AbstractHotelService {
    *
    * @return string|null
    */
-  protected function getMeta ( int $userId, string $key ) : ?string {
+  protected function getMeta ( int $userId) : ?array {
     $db = $this->getDB();
-    $stmt = $db->prepare( "SELECT * FROM wp_usermeta" );
+    $stmt = $db->prepare( "SELECT meta_key,meta_value FROM wp_usermeta WHERE user_id = :userid" );
+    $stmt->bindParam('userid', $userId, PDO::PARAM_INT);
     $stmt->execute();
     
     $result = $stmt->fetchAll( PDO::FETCH_ASSOC );
-    $output = null;
+    $output = [];
     foreach ( $result as $row ) {
-      if ( $row['user_id'] === $userId && $row['meta_key'] === $key )
-        $output = $row['meta_value'];
+      $output[$row['meta_key']] = $row['meta_value'];
     }
     
     return $output;
@@ -73,18 +73,19 @@ class UnoptimizedHotelService extends AbstractHotelService {
    * @noinspection PhpUnnecessaryLocalVariableInspection
    */
   protected function getMetas ( HotelEntity $hotel ) : array {
+    $data = $this->getMeta($hotel->getId());
     $metaDatas = [
       'address' => [
-        'address_1' => $this->getMeta( $hotel->getId(), 'address_1' ),
-        'address_2' => $this->getMeta( $hotel->getId(), 'address_2' ),
-        'address_city' => $this->getMeta( $hotel->getId(), 'address_city' ),
-        'address_zip' => $this->getMeta( $hotel->getId(), 'address_zip' ),
-        'address_country' => $this->getMeta( $hotel->getId(), 'address_country' ),
+        'address_1' => $data['address_1'],
+        'address_2' => $data['address_2'],
+        'address_city' => $data['address_city'],
+        'address_zip' => $data['address_zip'],
+        'address_country' => $data['address_country'],
       ],
-      'geo_lat' =>  $this->getMeta( $hotel->getId(), 'geo_lat' ),
-      'geo_lng' =>  $this->getMeta( $hotel->getId(), 'geo_lng' ),
-      'coverImage' =>  $this->getMeta( $hotel->getId(), 'coverImage' ),
-      'phone' =>  $this->getMeta( $hotel->getId(), 'phone' ),
+      'geo_lat' =>  $data['geo_lat'],
+      'geo_lng' =>  $data['geo_lng'],
+      'coverImage' =>  $data['coverImage'],
+      'phone' =>  $data['phone'],
     ];
     
     return $metaDatas;
@@ -191,10 +192,12 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $whereTab[] = 'bathData.meta_value >= :bathneed';
 
     if (($args['types'] ?? null)!=null)
-      $whereTab[] = 'typeData.meta_value = :typeneed';
+      $whereTab[] = 'typeData.meta_value IN ("'.implode('","',$args['types']).'")';
+
+      
 
     
-    $command .= " WHERE post.post_type='room'"; 
+    $command .= " WHERE post.post_type='room' AND post.post_author=:hotelId"; 
     
 
     if (count($whereTab) > 0)
@@ -202,7 +205,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $command .= " AND " . implode(' AND ', $whereTab);
     }
 
-    $command .= " Group by post.post_author";
+    //$command .= " Group by ";
 
     $stmt = $this->getDB()->prepare($command);
 
@@ -224,9 +227,13 @@ class UnoptimizedHotelService extends AbstractHotelService {
     if (($args['bathRooms'] ?? -1)!=-1.0)
       $stmt->bindParam('bathneed', $args['bathRooms'], PDO::PARAM_INT);
 
+      /*
     if (($args['types'] ?? null)!=null)
       $stmt->bindParam('typeneed', $args['types'][0]);
+      */
 
+    $hoteiid = $hotel->getId();
+    $stmt->bindParam('hotelId', $hoteiid);
     
     $stmt->execute();
       

@@ -23,20 +23,28 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 - **Après** 7.11 ms
 
 
-**Temps consommé par `getDB()`** 
-
-- **Avant** 1.21 secs
-
-- **Après** 7.11 ms
-
 
 ## Question 4 : Délégation des opérations de filtrage à la base de données
 
 **Temps de chargement globaux** 
 
-- **Avant** TEMPS
+- **Avant** 30 secs
 
-- **Après** TEMPS
+- **Après** 17 secs
+
+**Temps consommé par `getCheapestRoom()`** 
+
+- **Avant** 15.35 secs
+
+- **Après** 11.04 secs
+
+**Temps consommé par `getReview()`** 
+
+- **Avant** 8.96 secs
+
+- **Après** 6.36 secs
+
+
 
 
 #### Amélioration de la méthode `METHOD` et donc de la méthode `METHOD` :
